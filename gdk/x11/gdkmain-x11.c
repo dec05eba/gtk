@@ -249,11 +249,11 @@ _gdk_x11_display_send_xevent (GdkDisplay *display,
 
 void
 _gdk_x11_region_get_xrectangles (const cairo_region_t *region,
-                                 int              x_offset,
-                                 int              y_offset,
-                                 int              scale,
-                                 XRectangle     **rects,
-                                 int             *n_rects)
+                                 int                   x_offset,
+                                 int                   y_offset,
+                                 const GdkX11Scale    *scale,
+                                 XRectangle          **rects,
+                                 int                  *n_rects)
 {
   XRectangle *rectangles;
   cairo_rectangle_int_t box;
@@ -265,10 +265,13 @@ _gdk_x11_region_get_xrectangles (const cairo_region_t *region,
   for (i = 0; i < n; i++)
     {
       cairo_region_get_rectangle (region, i, &box);
-      rectangles[i].x = CLAMP ((box.x + x_offset) * scale, G_MINSHORT, G_MAXSHORT);
-      rectangles[i].y = CLAMP ((box.y + y_offset) * scale, G_MINSHORT, G_MAXSHORT);
-      rectangles[i].width = CLAMP (box.width * scale, G_MINSHORT, G_MAXSHORT);
-      rectangles[i].height = CLAMP (box.height * scale, G_MINSHORT, G_MAXSHORT);
+      box.x += x_offset;
+      box.y += y_offset;
+      gdk_x11_scale_rect_to_device (scale, &box, &box);
+      rectangles[i].x = CLAMP (box.x, G_MINSHORT, G_MAXSHORT);
+      rectangles[i].y = CLAMP (box.y, G_MINSHORT, G_MAXSHORT);
+      rectangles[i].width = CLAMP (box.width, G_MINSHORT, G_MAXSHORT);
+      rectangles[i].height = CLAMP (box.height, G_MINSHORT, G_MAXSHORT);
     }
 
   *n_rects = n;

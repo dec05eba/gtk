@@ -623,11 +623,23 @@ xdnd_leave_filter (GdkSurface   *surface,
   return TRUE;
 }
 
+static void
+get_drop_position (GdkX11Drop *drop_x11,
+                   GdkSurface *surface,
+                   double     *x,
+                   double     *y)
+{
+  GdkX11Surface *impl = GDK_X11_SURFACE (surface);
+  double scale = gdk_x11_scale_to_double (&impl->scale);
+
+  *x = (drop_x11->last_x - impl->device_geometry.x) / scale;
+  *y = (drop_x11->last_y - impl->device_geometry.y) / scale;
+}
+
 static gboolean
 xdnd_position_filter (GdkSurface   *surface,
                       const XEvent *xevent)
 {
-  GdkX11Surface *impl;
   Window source_window = xevent->xclient.data.l[0];
   gint16 x_root = xevent->xclient.data.l[2] >> 16;
   gint16 y_root = xevent->xclient.data.l[2] & 0xffff;
@@ -651,22 +663,25 @@ xdnd_position_filter (GdkSurface   *surface,
   if ((drop != NULL) &&
       (drop_x11->source_window == source_window))
     {
+      double x, y;
+
       surface = gdk_drop_get_surface (drop);
-      impl = GDK_X11_SURFACE (surface);
 
       drop_x11->suggested_action = xdnd_action_from_atom (display, action);
       gdk_x11_drop_update_actions (drop_x11);
 
-      drop_x11->last_x = x_root / impl->surface_scale;
-      drop_x11->last_y = y_root / impl->surface_scale;
+      drop_x11->last_x = x_root;
+      drop_x11->last_y = y_root;
+
+      get_drop_position (drop_x11, surface, &x, &y);
 
       if (drop_x11->enter_emitted)
         {
-          gdk_drop_emit_motion_event (drop, FALSE, drop_x11->last_x - impl->abs_x, drop_x11->last_y - impl->abs_y, time);
+          gdk_drop_emit_motion_event (drop, FALSE, x, y, time);
         }
       else
         {
-          gdk_drop_emit_enter_event (drop, FALSE, drop_x11->last_x - impl->abs_x, drop_x11->last_y - impl->abs_y, time);
+          gdk_drop_emit_enter_event (drop, FALSE, x, y, time);
           drop_x11->enter_emitted = TRUE;
         }
     }
@@ -699,10 +714,12 @@ xdnd_drop_filter (GdkSurface   *surface,
       (drop_x11->source_window == source_window))
     {
       GdkSurface *s = gdk_drop_get_surface (drop);
-      GdkX11Surface *si = GDK_X11_SURFACE (s);
+      double x, y;
+
       gdk_x11_surface_set_user_time (s, time);
 
-      gdk_drop_emit_drop_event (drop, FALSE, drop_x11->last_x - si->abs_x, drop_x11->last_y - si->abs_y, time);
+      get_drop_position (drop_x11, s, &x, &y);
+      gdk_drop_emit_drop_event (drop, FALSE, x, y, time);
     }
 
   return TRUE;

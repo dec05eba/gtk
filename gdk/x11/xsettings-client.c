@@ -460,9 +460,15 @@ read_settings (GdkX11Screen *x11_screen,
 
   g_value_init (&value, G_TYPE_INT);
 
-  if (!x11_screen->fixed_surface_scale &&
-      gdk_display_get_setting (display, "gdk-window-scaling-factor", &value))
-    _gdk_x11_screen_set_surface_scale (x11_screen, g_value_get_int (&value));
+  if (!x11_screen->fixed_surface_scale)
+    {
+      int scale = x11_screen->surface_scale;
+
+      if (gdk_display_get_setting (display, "gdk-window-scaling-factor", &value))
+        scale = g_value_get_int (&value);
+
+      _gdk_x11_screen_set_surface_scale (x11_screen, scale, FALSE);
+    }
 
   /* XSettings gives us the cursor theme size in physical pixel size,
    * while we want logical pixel values instead.

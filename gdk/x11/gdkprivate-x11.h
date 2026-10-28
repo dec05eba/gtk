@@ -80,7 +80,7 @@ cairo_region_t* _gdk_x11_xwindow_get_shape  (Display *xdisplay,
 void     _gdk_x11_region_get_xrectangles   (const cairo_region_t  *region,
                                             int                    x_offset,
                                             int                    y_offset,
-                                            int                    scale,
+                                            const GdkX11Scale     *scale,
                                             XRectangle           **rects,
                                             int                   *n_rects);
 

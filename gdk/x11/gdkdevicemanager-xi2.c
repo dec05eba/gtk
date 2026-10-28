@@ -1512,7 +1512,7 @@ gdk_x11_device_manager_xi2_translate_event (GdkEventTranslator *translator,
   GdkDevice *device, *source_device;
   GdkSurface *surface;
   GdkX11Surface *impl;
-  int scale;
+  double scale;
   XIEvent *ev;
   GdkEvent *event;
 
@@ -1540,7 +1540,7 @@ gdk_x11_device_manager_xi2_translate_event (GdkEventTranslator *translator,
   if (surface)
     {
       impl = GDK_X11_SURFACE (surface);
-      scale = impl->surface_scale;
+      scale = gdk_x11_scale_to_double (&impl->scale);
     }
 
   if (ev->evtype == XI_Motion ||

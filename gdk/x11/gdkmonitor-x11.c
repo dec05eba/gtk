@@ -79,14 +79,26 @@ void
 gdk_x11_monitor_get_workarea (GdkMonitor   *monitor,
                               GdkRectangle *dest)
 {
-  GdkX11Screen *screen = GDK_X11_DISPLAY (monitor->display)->screen;
+  GdkX11Monitor *x11_monitor = GDK_X11_MONITOR (monitor);
   GdkRectangle workarea;
 
-  gdk_monitor_get_geometry (monitor, dest);
+  gdk_x11_monitor_get_device_workarea (x11_monitor, &workarea);
+  gdk_x11_scale_rect_from_device (&x11_monitor->scale, &workarea, dest);
+}
 
-  if (_gdk_x11_screen_get_monitor_work_area (screen, monitor, &workarea))
+void
+gdk_x11_monitor_get_device_workarea (GdkX11Monitor *monitor,
+                                     GdkRectangle  *dest)
+{
+  GdkDisplay *display = GDK_MONITOR (monitor)->display;
+  GdkX11Screen *screen = GDK_X11_DISPLAY (display)->screen;
+  GdkRectangle workarea;
+
+  *dest = monitor->device_geometry;
+
+  if (_gdk_x11_screen_get_monitor_device_work_area (screen, monitor, &workarea))
     {
-      if (!gdk_monitor_has_fullscreen_window (monitor))
+      if (!gdk_monitor_has_fullscreen_window (GDK_MONITOR (monitor)))
         *dest = workarea;
     }
   else
@@ -97,14 +109,67 @@ gdk_x11_monitor_get_workarea (GdkMonitor   *monitor,
        * but the primary monitor. Since that is where the 'desktop
        * chrome' usually lives, this works ok in practice.
        */
-      if (monitor == gdk_x11_display_get_primary_monitor (monitor->display) &&
-          !gdk_monitor_has_fullscreen_window (monitor))
+      if (GDK_MONITOR (monitor) == gdk_x11_display_get_primary_monitor (display) &&
+          !gdk_monitor_has_fullscreen_window (GDK_MONITOR (monitor)))
         {
-          gdk_x11_screen_get_work_area (screen, &workarea);
+          gdk_x11_screen_get_device_work_area (screen, &workarea);
           if (gdk_rectangle_intersect (dest, &workarea, &workarea))
             *dest = workarea;
         }
     }
+}
+
+void
+gdk_x11_monitor_get_device_geometry (GdkX11Monitor *monitor,
+                                     GdkRectangle  *geometry)
+{
+  *geometry = monitor->device_geometry;
+}
+
+void
+gdk_x11_monitor_set_device_geometry (GdkX11Monitor      *monitor,
+                                     const GdkRectangle *geometry,
+                                     const GdkX11Scale  *scale)
+{
+  GdkRectangle logical_geometry;
+
+  monitor->device_geometry = *geometry;
+  monitor->scale = *scale;
+
+  gdk_x11_scale_rect_from_device (scale, geometry, &logical_geometry);
+  gdk_monitor_set_geometry (GDK_MONITOR (monitor), &logical_geometry);
+  gdk_monitor_set_scale (GDK_MONITOR (monitor), gdk_x11_scale_to_double (scale));
+}
+
+GdkX11Monitor *
+gdk_x11_display_get_monitor_at_device_rect (GdkDisplay              *display,
+                                            const GdkRectangle      *rect,
+                                            GdkX11MonitorBoundsFunc  get_bounds)
+{
+  GListModel *monitors = gdk_display_get_monitors (display);
+  GdkX11Monitor *best_monitor = NULL;
+  int best_area = 0;
+  guint i;
+
+  for (i = 0; i < g_list_model_get_n_items (monitors); i++)
+    {
+      GdkX11Monitor *monitor = g_list_model_get_item (monitors, i);
+      GdkRectangle bounds;
+      GdkRectangle intersection;
+
+      get_bounds (monitor, &bounds);
+
+      if (gdk_rectangle_intersect (rect, &bounds, &intersection) &&
+          intersection.width * intersection.height > best_area)
+        {
+          best_area = intersection.width * intersection.height;
+          best_monitor = monitor;
+        }
+
+      g_object_unref (monitor);
+    }
+
+  return best_monitor;
 }
 
 static void

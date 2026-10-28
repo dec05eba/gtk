@@ -25,9 +25,12 @@
 #pragma once
 
 #include "gdksurfaceprivate.h"
+#include "gdkscale-x11.h"
 #include "gdkx11surface.h"
 
 #include <X11/Xlib.h>
+
+#include "gdkx11monitor.h"
 
 #ifdef HAVE_XSYNC
 #include <X11/Xlib.h>
@@ -64,21 +67,17 @@ struct _GdkX11Surface
   guint frame_sync_enabled : 1;
   guint tracking_damage: 1;
   guint popup_grab : 1;
+  guint viewable : 1;
+  guint was_viewable : 1;
 
-  int surface_scale;
+  GdkX11Scale scale;
 
   int shadow_left;
   int shadow_right;
   int shadow_top;
   int shadow_bottom;
 
-  /* Width and height not divided by surface_scale - this matters in the
-   * corner-case where the window manager assigns us a size that isn't
-   * a multiple of surface_scale - for example for a maximized window
-   * with an odd-sized title-bar.
-   */
-  int unscaled_width;
-  int unscaled_height;
+  GdkRectangle device_geometry;
 
   int last_computed_width;
   int last_computed_height;
@@ -99,9 +98,6 @@ struct _GdkX11Surface
   cairo_surface_t *cairo_surface;
   /* GLXDrawable */ XID glx_drawable;
   guint32 glx_frame_counter;
-
-  int abs_x;
-  int abs_y;
 
   guint64 map_time;
 
@@ -209,8 +205,15 @@ GdkToplevelX11 *_gdk_x11_surface_get_toplevel        (GdkSurface *window);
 
 GdkCursor      *_gdk_x11_surface_get_cursor          (GdkSurface *window);
 
-void            _gdk_x11_surface_set_surface_scale   (GdkSurface *window,
-                                                      int        scale);
+void            gdk_x11_surface_set_scale            (GdkSurface        *surface,
+                                                      const GdkX11Scale *scale);
+void            gdk_x11_surface_update_scale         (GdkSurface *surface);
+void            gdk_x11_surface_set_viewable         (GdkSurface *surface,
+                                                      gboolean    viewable);
+void            gdk_x11_surface_set_device_position  (GdkSurface *surface,
+                                                      int         x,
+                                                      int         y);
+GdkX11Monitor * gdk_x11_surface_get_monitor          (GdkSurface *surface);
 gboolean        _gdk_x11_surface_syncs_frames        (GdkSurface *surface);
 GdkDrawContextFrame *
                 gdk_x11_surface_find_frame           (GdkSurface *surface,

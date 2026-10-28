@@ -34,22 +34,24 @@ G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 G_DEFINE_TYPE (GdkX11CairoContext, gdk_x11_cairo_context, GDK_TYPE_CAIRO_CONTEXT)
 
 static cairo_surface_t *
-create_cairo_surface_for_surface (GdkSurface *surface)
+create_cairo_surface_for_surface (GdkDrawContext *draw_context)
 {
+  GdkSurface *surface;
   GdkDisplay *display;
   cairo_surface_t *cairo_surface;
   Visual *visual;
-  int scale;
-    
+  guint width, height;
+
+  surface = gdk_draw_context_get_surface (draw_context);
   display = gdk_surface_get_display (surface);
-  scale = gdk_surface_get_scale_factor (surface);
+  gdk_draw_context_get_buffer_size (draw_context, &width, &height);
 
   visual = gdk_x11_display_get_window_visual (GDK_X11_DISPLAY (display));
   cairo_surface = cairo_xlib_surface_create (gdk_x11_display_get_xdisplay (display),
                                              GDK_SURFACE_XID (surface),
                                              visual,
-                                             gdk_surface_get_width (surface) * scale,
-                                             gdk_surface_get_height (surface) * scale);
+                                             width,
+                                             height);
 
   return cairo_surface;
 }
@@ -61,14 +63,12 @@ gdk_x11_cairo_context_begin_frame (GdkDrawContext      *draw_context,
 {
   GdkX11CairoContext *self = GDK_X11_CAIRO_CONTEXT (draw_context);
   GdkRectangle clip_box;
-  GdkSurface *surface;
   cairo_surface_t *cairo_surface;
   cairo_format_t format;
 
-  surface = gdk_draw_context_get_surface (draw_context);
   cairo_region_get_extents (gdk_draw_context_frame_get_damage (frame), &clip_box);
 
-  self->window_surface = create_cairo_surface_for_surface (surface);
+  self->window_surface = create_cairo_surface_for_surface (draw_context);
 
   format = gdk_cairo_format_for_content (cairo_surface_get_content (self->window_surface));
   cairo_surface = cairo_image_surface_create (format,

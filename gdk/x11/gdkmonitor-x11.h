@@ -22,6 +22,7 @@
 #include <X11/Xlib.h>
 
 #include "gdkmonitorprivate.h"
+#include "gdkscale-x11.h"
 
 #include "gdkx11monitor.h"
 
@@ -31,6 +32,8 @@ struct _GdkX11Monitor
   GdkMonitor parent;
 
   XID output;
+  GdkRectangle device_geometry;
+  GdkX11Scale scale;
   guint add     : 1;
   guint remove  : 1;
 };
@@ -38,4 +41,19 @@ struct _GdkX11Monitor
 struct _GdkX11MonitorClass {
   GdkMonitorClass parent_class;
 };
+
+typedef void (* GdkX11MonitorBoundsFunc) (GdkX11Monitor *monitor,
+                                          GdkRectangle  *bounds);
+
+void            gdk_x11_monitor_set_device_geometry        (GdkX11Monitor      *monitor,
+                                                            const GdkRectangle *geometry,
+                                                            const GdkX11Scale  *scale);
+void            gdk_x11_monitor_get_device_geometry        (GdkX11Monitor      *monitor,
+                                                            GdkRectangle       *geometry);
+void            gdk_x11_monitor_get_device_workarea        (GdkX11Monitor      *monitor,
+                                                            GdkRectangle       *workarea);
+
+GdkX11Monitor * gdk_x11_display_get_monitor_at_device_rect (GdkDisplay              *display,
+                                                            const GdkRectangle      *rect,
+                                                            GdkX11MonitorBoundsFunc  get_bounds);
 

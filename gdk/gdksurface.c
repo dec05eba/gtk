@@ -2487,7 +2487,7 @@ gdk_surface_get_scale (GdkSurface *surface)
   return GDK_SURFACE_GET_CLASS (surface)->get_scale (surface);
 }
 
-static void
+void
 gdk_surface_update_opaque_region (GdkSurface *self)
 {
   GdkSurfacePrivate *priv = gdk_surface_get_instance_private (self);

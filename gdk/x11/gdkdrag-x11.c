@@ -500,18 +500,17 @@ gdk_surface_cache_new (GdkDisplay *display)
       GList *toplevel_windows, *list;
       GdkSurface *surface;
       GdkX11Surface *impl;
-      int x, y, width, height;
 
       toplevel_windows = gdk_x11_display_get_toplevel_windows (display);
       for (list = toplevel_windows; list; list = list->next)
         {
           surface = GDK_SURFACE (list->data);
 	  impl = GDK_X11_SURFACE (surface);
-          gdk_surface_get_geometry (surface, &x, &y, &width, &height);
           gdk_surface_cache_add (result, GDK_SURFACE_XID (surface),
-                                x * impl->surface_scale, y * impl->surface_scale, 
-				width * impl->surface_scale, 
-				height * impl->surface_scale,
+                                impl->device_geometry.x,
+                                impl->device_geometry.y,
+                                impl->device_geometry.width,
+                                impl->device_geometry.height,
                                 gdk_surface_get_mapped (surface));
         }
       return result;
@@ -1302,23 +1301,22 @@ gdk_x11_drag_find_surface (GdkDrag         *drag,
                            int              y_root,
                            GdkDragProtocol *protocol)
 {
-  GdkX11Screen *screen_x11;
   GdkX11Drag *drag_x11 = GDK_X11_DRAG (drag);
+  GdkX11Surface *ipc_impl = GDK_X11_SURFACE (drag_x11->ipc_surface);
   GdkSurfaceCache *window_cache;
   GdkDisplay *display;
   Window dest;
   Window proxy;
 
   display = gdk_drag_get_display (drag);
-  screen_x11 = GDK_X11_SCREEN(GDK_X11_DISPLAY (display)->screen);
 
   window_cache = drag_find_window_cache (drag_x11, display);
 
   dest = get_client_window_at_coords (window_cache,
                                       drag_surface && GDK_IS_X11_SURFACE (drag_surface) ?
                                       GDK_SURFACE_XID (drag_surface) : None,
-                                      x_root * screen_x11->surface_scale,
-                                      y_root * screen_x11->surface_scale);
+                                      gdk_x11_scale_position_to_device (&ipc_impl->scale, x_root),
+                                      gdk_x11_scale_position_to_device (&ipc_impl->scale, y_root));
 
   if (drag_x11->dest_xid != dest)
     {
@@ -1459,15 +1457,17 @@ gdk_x11_drag_drag_motion (GdkDrag         *drag,
 
   if (drag_x11->proxy_xid)
     {
-      GdkDisplay *display = gdk_drag_get_display (drag);
-      GdkX11Screen *screen_x11 = GDK_X11_SCREEN(GDK_X11_DISPLAY (display)->screen);
+      GdkX11Surface *ipc_impl = GDK_X11_SURFACE (drag_x11->ipc_surface);
 
       if (drag_x11->drag_status == GDK_DRAG_STATUS_DRAG)
         {
           switch (drag_x11->protocol)
             {
             case GDK_DRAG_PROTO_XDND:
-              xdnd_send_motion (drag_x11, x_root * screen_x11->surface_scale, y_root * screen_x11->surface_scale, suggested_action, time);
+              xdnd_send_motion (drag_x11,
+                                gdk_x11_scale_position_to_device (&ipc_impl->scale, x_root),
+                                gdk_x11_scale_position_to_device (&ipc_impl->scale, y_root),
+                                suggested_action, time);
               break;
 
             case GDK_DRAG_PROTO_ROOTWIN:
@@ -1885,6 +1885,7 @@ _gdk_x11_surface_drag_begin (GdkSurface         *surface,
   display = gdk_surface_get_display (surface);
 
   ipc_surface = gdk_x11_drag_surface_new (display);
+  gdk_x11_surface_set_scale (ipc_surface, &GDK_X11_SURFACE (surface)->scale);
 
   drag = (GdkDrag *) g_object_new (GDK_TYPE_X11_DRAG,
                                    "surface", ipc_surface,
@@ -1919,6 +1920,7 @@ _gdk_x11_surface_drag_begin (GdkSurface         *surface,
   gdk_x11_surface_show (x11_drag->ipc_surface, FALSE);
 
   x11_drag->drag_surface = gdk_x11_drag_surface_new (display);
+  gdk_x11_surface_set_scale (x11_drag->drag_surface, &GDK_X11_SURFACE (surface)->scale);
 
   if (!drag_grab (drag))
     {

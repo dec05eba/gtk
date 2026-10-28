@@ -25,6 +25,9 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 
+#include "gdkx11monitor.h"
+#include "gdkscale-x11.h"
+
 G_BEGIN_DECLS
 
 struct _GdkX11Screen
@@ -39,6 +42,7 @@ struct _GdkX11Screen
 
   int surface_scale;
   gboolean fixed_surface_scale;
+  GdkX11Scale default_scale;
 
   /* Xft resources for the display, used for default values for
    * the Xft/ XSETTINGS
@@ -91,11 +95,12 @@ void _gdk_x11_screen_get_edge_monitors      (GdkX11Screen *screen,
                                              int          *left,
                                              int          *right);
 void _gdk_x11_screen_set_surface_scale      (GdkX11Screen *x11_screen,
-                                             int           scale);
-gboolean _gdk_x11_screen_get_monitor_work_area (GdkX11Screen *screen,
-                                                GdkMonitor   *monitor,
-                                                GdkRectangle *area);
-void gdk_x11_screen_get_work_area           (GdkX11Screen *screen,
+                                             int           scale,
+                                             gboolean      fixed);
+gboolean _gdk_x11_screen_get_monitor_device_work_area (GdkX11Screen  *screen,
+                                                       GdkX11Monitor *monitor,
+                                                       GdkRectangle  *area);
+void gdk_x11_screen_get_device_work_area    (GdkX11Screen *screen,
                                              GdkRectangle *area);
 gboolean gdk_x11_screen_get_setting         (GdkX11Screen *screen,
                                              const char   *name,

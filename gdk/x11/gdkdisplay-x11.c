@@ -715,16 +715,15 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
 
       {
 	GdkRectangle expose_rect;
-        int x2, y2;
 
-        expose_rect.x = xevent->xexpose.x / surface_impl->surface_scale;
-        expose_rect.y = xevent->xexpose.y / surface_impl->surface_scale;
-
-        x2 = (xevent->xexpose.x + xevent->xexpose.width + surface_impl->surface_scale -1) / surface_impl->surface_scale;
-        expose_rect.width = x2 - expose_rect.x;
-
-        y2 = (xevent->xexpose.y + xevent->xexpose.height + surface_impl->surface_scale -1) / surface_impl->surface_scale;
-        expose_rect.height = y2 - expose_rect.y;
+        gdk_x11_scale_rect_from_device (&surface_impl->scale,
+                                        &(GdkRectangle) {
+                                          xevent->xexpose.x,
+                                          xevent->xexpose.y,
+                                          xevent->xexpose.width,
+                                          xevent->xexpose.height
+                                        },
+                                        &expose_rect);
 
         gdk_surface_invalidate_rect (surface, &expose_rect);
       }
@@ -734,7 +733,6 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
     case GraphicsExpose:
       {
 	GdkRectangle expose_rect;
-        int x2, y2;
 
         GDK_DISPLAY_DEBUG (display, EVENTS,
                            "graphics expose:\tdrawable: %ld",
@@ -743,14 +741,14 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
         if (surface == NULL)
           break;
 
-        expose_rect.x = xevent->xgraphicsexpose.x / surface_impl->surface_scale;
-        expose_rect.y = xevent->xgraphicsexpose.y / surface_impl->surface_scale;
-
-        x2 = (xevent->xgraphicsexpose.x + xevent->xgraphicsexpose.width + surface_impl->surface_scale -1) / surface_impl->surface_scale;
-        expose_rect.width = x2 - expose_rect.x;
-
-        y2 = (xevent->xgraphicsexpose.y + xevent->xgraphicsexpose.height + surface_impl->surface_scale -1) / surface_impl->surface_scale;
-        expose_rect.height = y2 - expose_rect.y;
+        gdk_x11_scale_rect_from_device (&surface_impl->scale,
+                                        &(GdkRectangle) {
+                                          xevent->xgraphicsexpose.x,
+                                          xevent->xgraphicsexpose.y,
+                                          xevent->xgraphicsexpose.width,
+                                          xevent->xgraphicsexpose.height
+                                        },
+                                        &expose_rect);
 
         gdk_surface_invalidate_rect (surface, &expose_rect);
       }
@@ -837,6 +835,8 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
 	  if (toplevel)
             gdk_surface_freeze_updates (surface);
 
+          gdk_x11_surface_set_viewable (surface, FALSE);
+
           _gdk_x11_surface_grab_check_unmap (surface, xevent->xany.serial);
 
           gdk_profiler_add_markf (GDK_PROFILER_CURRENT_TIME, 0, "unmapped window", "0x%lx", GDK_SURFACE_XID (surface));
@@ -862,6 +862,8 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
 
 	  if (toplevel)
 	    gdk_surface_thaw_updates (surface);
+
+          gdk_x11_surface_set_viewable (surface, TRUE);
 
           if (GDK_PROFILER_IS_RUNNING)
             {
@@ -916,14 +918,11 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
           int x, y;
           int configured_width;
           int configured_height;
-          int new_abs_x, new_abs_y;
 
-          configured_width =
-            (xevent->xconfigure.width + surface_impl->surface_scale - 1) /
-            surface_impl->surface_scale;
-          configured_height =
-            (xevent->xconfigure.height + surface_impl->surface_scale - 1) /
-            surface_impl->surface_scale;
+          configured_width = gdk_x11_scale_size_from_device (&surface_impl->scale,
+                                                             xevent->xconfigure.width);
+          configured_height = gdk_x11_scale_size_from_device (&surface_impl->scale,
+                                                              xevent->xconfigure.height);
 
 	  if (!xevent->xconfigure.send_event &&
 	      !xevent->xconfigure.override_redirect &&
@@ -942,37 +941,24 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
 					 &tx, &ty,
 					 &child_window))
 		{
-		  x = tx / surface_impl->surface_scale;
-		  y = ty / surface_impl->surface_scale;
+		  x = tx;
+		  y = ty;
 		}
 	      gdk_x11_display_error_trap_pop_ignored (display);
 	    }
 	  else
 	    {
-	      x = xevent->xconfigure.x / surface_impl->surface_scale;
-	      y = xevent->xconfigure.y / surface_impl->surface_scale;
+	      x = xevent->xconfigure.x;
+	      y = xevent->xconfigure.y;
 	    }
 
-          new_abs_x = x;
-          new_abs_y = y;
+          gdk_x11_surface_set_device_position (surface, x, y);
 
-          surface_impl->abs_x = new_abs_x;
-          surface_impl->abs_y = new_abs_y;
-
-          if (surface->parent)
+          if (surface_impl->device_geometry.width != xevent->xconfigure.width ||
+              surface_impl->device_geometry.height != xevent->xconfigure.height)
             {
-              GdkX11Surface *parent_impl =
-                GDK_X11_SURFACE (surface->parent);
-
-              surface->x = new_abs_x - parent_impl->abs_x;
-              surface->y = new_abs_y - parent_impl->abs_y;
-            }
-
-          if (surface_impl->unscaled_width != xevent->xconfigure.width ||
-              surface_impl->unscaled_height != xevent->xconfigure.height)
-            {
-              surface_impl->unscaled_width = xevent->xconfigure.width;
-              surface_impl->unscaled_height = xevent->xconfigure.height;
+              surface_impl->device_geometry.width = xevent->xconfigure.width;
+              surface_impl->device_geometry.height = xevent->xconfigure.height;
 
               surface_impl->next_layout.configured_width = configured_width;
               surface_impl->next_layout.configured_height = configured_height;
@@ -991,6 +977,7 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
 
           gdk_x11_surface_update_popups (surface);
           gdk_x11_surface_enter_leave_monitors (surface);
+          gdk_x11_surface_update_scale (surface);
         }
       break;
 
@@ -2614,7 +2601,7 @@ gdk_x11_display_set_surface_scale (GdkDisplay *display,
                                   int         scale)
 {
   GdkX11Screen *x11_screen;
-  gboolean need_reread_settings = FALSE;
+  gboolean need_reread_settings;
 
   g_return_if_fail (GDK_IS_X11_DISPLAY (display));
 
@@ -2622,17 +2609,12 @@ gdk_x11_display_set_surface_scale (GdkDisplay *display,
 
   x11_screen = GDK_X11_SCREEN (GDK_X11_DISPLAY (display)->screen);
 
-  if (!x11_screen->fixed_surface_scale)
-    {
-      x11_screen->fixed_surface_scale = TRUE;
+  /* We treat screens with a window scale set differently when
+   * reading xsettings, so we need to reread
+   */
+  need_reread_settings = !x11_screen->fixed_surface_scale;
 
-      /* We treat screens with a window scale set differently when
-       * reading xsettings, so we need to reread
-       */
-      need_reread_settings = TRUE;
-    }
-
-  _gdk_x11_screen_set_surface_scale (x11_screen, scale);
+  _gdk_x11_screen_set_surface_scale (x11_screen, scale, TRUE);
 
   if (need_reread_settings)
     _gdk_x11_settings_force_reread (x11_screen);
@@ -2800,6 +2782,13 @@ gdk_x11_display_get_monitors (GdkDisplay *display)
   GdkX11Display *self = GDK_X11_DISPLAY (display);
 
   return G_LIST_MODEL (self->monitors);
+}
+
+static GdkMonitor *
+gdk_x11_display_get_monitor_at_surface (GdkDisplay *display,
+                                        GdkSurface *surface)
+{
+  return GDK_MONITOR (gdk_x11_surface_get_monitor (surface));
 }
 
 /**
@@ -3056,6 +3045,7 @@ G_GNUC_END_IGNORE_DEPRECATIONS
   display_class->get_default_seat = gdk_x11_display_get_default_seat;
 
   display_class->get_monitors = gdk_x11_display_get_monitors;
+  display_class->get_monitor_at_surface = gdk_x11_display_get_monitor_at_surface;
   display_class->get_setting = gdk_x11_display_get_setting;
   display_class->set_cursor_theme = _gdk_x11_display_set_cursor_theme;
 

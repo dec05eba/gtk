@@ -198,7 +198,7 @@ gdk_x11_device_xi2_set_surface_cursor (GdkDevice *device,
                     GDK_SURFACE_XID (surface),
                     _gdk_x11_display_get_xcursor_with_scale (GDK_SURFACE_DISPLAY (surface),
                                                              cursor,
-                                                             gdk_surface_get_scale (surface)));
+                                                             gdk_surface_get_scale_factor (surface)));
   else
     XIUndefineCursor (GDK_SURFACE_XDISPLAY (surface),
                       device_xi2->device_id,
@@ -220,19 +220,19 @@ gdk_x11_device_xi2_query_state (GdkDevice        *device,
   XIButtonState button_state;
   XIModifierState mod_state;
   XIGroupState group_state;
-  int scale;
+  double scale;
 
   display = gdk_device_get_display (device);
   default_screen = GDK_X11_DISPLAY (display)->screen;
   if (surface == NULL)
     {
       xwindow = GDK_DISPLAY_XROOTWIN (display);
-      scale = default_screen->surface_scale;
+      scale = gdk_x11_scale_to_double (&default_screen->default_scale);
     }
   else
     {
       xwindow = GDK_SURFACE_XID (surface);
-      scale = GDK_X11_SURFACE (surface)->surface_scale;
+      scale = gdk_x11_scale_to_double (&GDK_X11_SURFACE (surface)->scale);
     }
 
   if (!GDK_X11_DISPLAY (display)->trusted_client ||
@@ -328,7 +328,7 @@ gdk_x11_device_xi2_grab (GdkDevice    *device,
   else
     xcursor = _gdk_x11_display_get_xcursor_with_scale (display,
                                                        cursor,
-                                                       gdk_surface_get_scale (surface));
+                                                       gdk_surface_get_scale_factor (surface));
 
   mask.deviceid = device_xi2->device_id;
   mask.mask = _gdk_x11_device_xi2_translate_event_mask (device_manager_xi2,
@@ -531,10 +531,10 @@ gdk_x11_device_xi2_surface_at_position (GdkDevice       *device,
     }
 
   if (win_x)
-    *win_x = (surface) ? (xwin_x / impl->surface_scale) : -1;
+    *win_x = (surface) ? (xwin_x / gdk_x11_scale_to_double (&impl->scale)) : -1;
 
   if (win_y)
-    *win_y = (surface) ? (xwin_y / impl->surface_scale) : -1;
+    *win_y = (surface) ? (xwin_y / gdk_x11_scale_to_double (&impl->scale)) : -1;
 
 
   return surface;
