@@ -993,10 +993,6 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
       if (surface == NULL)
         break;
 
-      if (toplevel &&
-          xevent->xproperty.atom == gdk_x11_get_xatom_by_name_for_display (display, "_X_WINDOW_DPI"))
-        gdk_x11_surface_window_dpi_changed (surface);
-
       /* We compare with the serial of the last time we mapped the
        * window to avoid refetching properties that we set ourselves
        */

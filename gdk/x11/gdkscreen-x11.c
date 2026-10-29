@@ -514,28 +514,22 @@ get_default_scale (GdkX11Screen *x11_screen)
   return GDK_X11_SCALE_INIT_DPI (x11_screen->surface_scale * get_xft_dpi (x11_screen));
 }
 
-GdkX11Scale
-gdk_x11_screen_get_dpi_scale (GdkX11Screen *x11_screen,
-                              int           dpi)
-{
-  if (x11_screen->fixed_surface_scale || dpi <= 0)
-    return x11_screen->default_scale;
-
-  return GDK_X11_SCALE_INIT_DPI (dpi);
-}
-
 static GdkX11Scale
 get_output_scale (GdkX11Screen *x11_screen,
                   XID           output)
 {
-  int dpi = 0;
-
 #ifdef HAVE_RANDR
+  int dpi;
+
   if (!x11_screen->fixed_surface_scale && output != None)
-    dpi = get_output_dpi (x11_screen, output);
+    {
+      dpi = get_output_dpi (x11_screen, output);
+      if (dpi > 0)
+        return GDK_X11_SCALE_INIT_DPI (dpi);
+    }
 #endif
 
-  return gdk_x11_screen_get_dpi_scale (x11_screen, dpi);
+  return x11_screen->default_scale;
 }
 
 static gboolean
