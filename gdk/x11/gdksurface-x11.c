@@ -279,40 +279,14 @@ wm_controls_size (GdkSurface *surface)
 }
 
 static gboolean
-min_size_follows_scale (GdkSurfaceHints geom_mask)
-{
-  return (geom_mask & GDK_HINT_MAX_SIZE) != 0;
-}
-
-static gboolean
 keeps_device_size_on_rescale (GdkSurface *surface)
 {
   GdkX11Surface *impl = GDK_X11_SURFACE (surface);
-  GdkToplevelX11 *toplevel = _gdk_x11_surface_get_toplevel (surface);
 
-  if (impl->override_redirect ||
-      impl->device_geometry.width <= 0 ||
-      impl->device_geometry.height <= 0)
-    return FALSE;
-
-  if (wm_controls_size (surface))
-    return TRUE;
-
-  return impl->was_viewable &&
-         toplevel != NULL &&
-         !min_size_follows_scale (toplevel->last_geometry_hints_mask);
-}
-
-static int
-clamp_to_unscaled_min_size (const GdkX11Scale *scale,
-                            int                size,
-                            int                min_size,
-                            int                configured_size)
-{
-  if (size != min_size || configured_size <= 0 || configured_size >= size)
-    return size;
-
-  return MAX (configured_size, gdk_x11_scale_size_from_device (scale, min_size));
+  return !impl->override_redirect &&
+         impl->device_geometry.width > 0 &&
+         impl->device_geometry.height > 0 &&
+         wm_controls_size (surface);
 }
 
 static gboolean
@@ -382,15 +356,6 @@ compute_toplevel_size (GdkSurface *surface,
 
       geometry = toplevel->last_geometry_hints;
       mask = toplevel->last_geometry_hints_mask;
-      if ((mask & GDK_HINT_MIN_SIZE) && !min_size_follows_scale (mask))
-        {
-          size.width = clamp_to_unscaled_min_size (&impl->scale, size.width, size.min_width,
-                                                   impl->next_layout.configured_width);
-          size.height = clamp_to_unscaled_min_size (&impl->scale, size.height, size.min_height,
-                                                    impl->next_layout.configured_height);
-          geometry.min_width = gdk_x11_scale_size_from_device (&impl->scale, geometry.min_width);
-          geometry.min_height = gdk_x11_scale_size_from_device (&impl->scale, geometry.min_height);
-        }
       gdk_surface_constrain_size (&geometry, mask,
                                   size.width, size.height,
                                   &size.width, &size.height);
@@ -2222,25 +2187,84 @@ rescaled_surface_stays_on_scale (GdkSurface    *surface,
   return rescaled_monitor != NULL && gdk_x11_scale_equal (&rescaled_monitor->scale, &monitor->scale);
 }
 
-void
-gdk_x11_surface_update_scale (GdkSurface *surface)
+static gboolean
+get_window_scale (GdkSurface  *surface,
+                  GdkX11Scale *scale)
+{
+  GdkX11Surface *impl = GDK_X11_SURFACE (surface);
+
+  if (impl->window_dpi <= 0)
+    return FALSE;
+
+  *scale = gdk_x11_screen_get_dpi_scale (GDK_X11_DISPLAY (surface->display)->screen,
+                                         impl->window_dpi);
+  return TRUE;
+}
+
+static gboolean
+get_monitor_scale (GdkSurface  *surface,
+                   GdkX11Scale *scale)
 {
   GdkX11Surface *impl = GDK_X11_SURFACE (surface);
   GdkX11Monitor *monitor;
 
-  if (!GDK_IS_TOPLEVEL (surface) || !impl->viewable)
-    return;
-
   monitor = gdk_x11_display_get_monitor_at_device_rect (surface->display,
                                                         &impl->device_geometry,
                                                         gdk_x11_monitor_get_device_geometry);
-  if (monitor == NULL || gdk_x11_scale_equal (&monitor->scale, &impl->scale))
+  if (monitor == NULL || !rescaled_surface_stays_on_scale (surface, monitor))
+    return FALSE;
+
+  *scale = monitor->scale;
+  return TRUE;
+}
+
+void
+gdk_x11_surface_update_scale (GdkSurface *surface)
+{
+  GdkX11Surface *impl = GDK_X11_SURFACE (surface);
+  GdkX11Scale scale;
+
+  if (!GDK_IS_TOPLEVEL (surface) || !impl->viewable)
     return;
 
-  if (!rescaled_surface_stays_on_scale (surface, monitor))
+  if (!get_window_scale (surface, &scale) && !get_monitor_scale (surface, &scale))
     return;
 
-  gdk_x11_surface_set_scale (surface, &monitor->scale);
+  if (!gdk_x11_scale_equal (&scale, &impl->scale))
+    gdk_x11_surface_set_scale (surface, &scale);
+}
+
+void
+gdk_x11_surface_window_dpi_changed (GdkSurface *surface)
+{
+  GdkX11Surface *impl = GDK_X11_SURFACE (surface);
+  GdkDisplay *display = gdk_surface_get_display (surface);
+  Atom actual_type;
+  int actual_format;
+  unsigned long n_items;
+  unsigned long bytes_after;
+  unsigned char *data = NULL;
+  long dpi = 0;
+
+  if (GDK_SURFACE_DESTROYED (surface))
+    return;
+
+  gdk_x11_display_error_trap_push (display);
+  if (XGetWindowProperty (GDK_SURFACE_XDISPLAY (surface),
+                          GDK_SURFACE_XID (surface),
+                          gdk_x11_get_xatom_by_name_for_display (display, "_X_WINDOW_DPI"),
+                          0, 1, False, XA_INTEGER,
+                          &actual_type, &actual_format,
+                          &n_items, &bytes_after, &data) == Success &&
+      actual_type == XA_INTEGER && actual_format == 32 && n_items == 1)
+    dpi = *(long *) data;
+  gdk_x11_display_error_trap_pop_ignored (display);
+
+  if (data)
+    XFree (data);
+
+  impl->window_dpi = dpi > 0 && dpi <= G_MAXSHORT ? dpi : 0;
+  gdk_x11_surface_update_scale (surface);
 }
 
 void
@@ -2258,7 +2282,6 @@ gdk_x11_surface_set_viewable (GdkSurface *surface,
   gdk_x11_surface_get_device_origin (surface, &x, &y);
   gdk_x11_surface_set_device_position (surface, x, y);
   gdk_x11_surface_update_scale (surface);
-  impl->was_viewable = TRUE;
 }
 
 void
@@ -2682,16 +2705,8 @@ gdk_x11_surface_set_geometry_hints (GdkSurface         *surface,
   if (geom_mask & GDK_HINT_MIN_SIZE)
     {
       size_hints.flags |= PMinSize;
-      if (min_size_follows_scale (geom_mask))
-        {
-          size_hints.min_width = gdk_x11_scale_size_to_device (&impl->scale, geometry->min_width);
-          size_hints.min_height = gdk_x11_scale_size_to_device (&impl->scale, geometry->min_height);
-        }
-      else
-        {
-          size_hints.min_width = geometry->min_width;
-          size_hints.min_height = geometry->min_height;
-        }
+      size_hints.min_width = gdk_x11_scale_size_to_device (&impl->scale, geometry->min_width);
+      size_hints.min_height = gdk_x11_scale_size_to_device (&impl->scale, geometry->min_height);
     }
 
   if (geom_mask & GDK_HINT_MAX_SIZE)
@@ -5573,10 +5588,16 @@ gdk_x11_toplevel_present (GdkToplevel       *toplevel,
 
   if (!was_mapped)
     {
-      GdkX11Monitor *monitor = gdk_x11_surface_get_monitor (surface);
+      GdkX11Scale scale;
 
-      if (monitor)
-        gdk_x11_surface_set_scale (surface, &monitor->scale);
+      if (!get_window_scale (surface, &scale))
+        {
+          GdkX11Monitor *monitor = gdk_x11_surface_get_monitor (surface);
+
+          scale = monitor ? monitor->scale : impl->scale;
+        }
+
+      gdk_x11_surface_set_scale (surface, &scale);
     }
 
   gdk_x11_surface_unminimize (surface);

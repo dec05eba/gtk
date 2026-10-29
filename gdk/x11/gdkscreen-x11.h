@@ -102,6 +102,8 @@ gboolean _gdk_x11_screen_get_monitor_device_work_area (GdkX11Screen  *screen,
                                                        GdkRectangle  *area);
 void gdk_x11_screen_get_device_work_area    (GdkX11Screen *screen,
                                              GdkRectangle *area);
+GdkX11Scale gdk_x11_screen_get_dpi_scale    (GdkX11Screen *x11_screen,
+                                             int           dpi);
 gboolean gdk_x11_screen_get_setting         (GdkX11Screen *screen,
                                              const char   *name,
                                              GValue       *value);

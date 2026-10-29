@@ -68,9 +68,9 @@ struct _GdkX11Surface
   guint tracking_damage: 1;
   guint popup_grab : 1;
   guint viewable : 1;
-  guint was_viewable : 1;
 
   GdkX11Scale scale;
+  int window_dpi;
 
   int shadow_left;
   int shadow_right;
@@ -208,6 +208,7 @@ GdkCursor      *_gdk_x11_surface_get_cursor          (GdkSurface *window);
 void            gdk_x11_surface_set_scale            (GdkSurface        *surface,
                                                       const GdkX11Scale *scale);
 void            gdk_x11_surface_update_scale         (GdkSurface *surface);
+void            gdk_x11_surface_window_dpi_changed   (GdkSurface *surface);
 void            gdk_x11_surface_set_viewable         (GdkSurface *surface,
                                                       gboolean    viewable);
 void            gdk_x11_surface_set_device_position  (GdkSurface *surface,
