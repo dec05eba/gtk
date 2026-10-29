@@ -3119,6 +3119,14 @@ gtk_window_supports_client_shadow (GtkWindow *window)
   return gdk_display_supports_shadow_width (display);
 }
 
+gboolean
+gtk_window_clips_shadow (GtkWindow *window)
+{
+  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
+
+  return priv->client_decorated && !priv->use_client_shadow;
+}
+
 static void
 gtk_window_enable_csd (GtkWindow *window)
 {
@@ -4818,6 +4826,9 @@ surface_state_changed (GtkWidget *widget)
 
   new_surface_state = gdk_toplevel_get_state (GDK_TOPLEVEL (priv->surface));
   changed_mask = new_surface_state ^ priv->state;
+  if (gdk_surface_get_mapped (priv->surface) &&
+      priv->maximized != !!(new_surface_state & GDK_TOPLEVEL_STATE_MAXIMIZED))
+    changed_mask |= GDK_TOPLEVEL_STATE_MAXIMIZED;
   priv->state = new_surface_state;
 
   if (changed_mask & GDK_TOPLEVEL_STATE_FOCUSED)

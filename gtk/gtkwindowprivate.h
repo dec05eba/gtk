@@ -68,6 +68,8 @@ void            _gtk_window_set_window_group (GtkWindow      *window,
 GdkPaintable *    gtk_window_get_icon_for_size (GtkWindow *window,
                                                 int        size);
 
+gboolean          gtk_window_clips_shadow      (GtkWindow *window);
+
 /* Exported handles */
 
 typedef void (*GtkWindowHandleExported)  (GtkWindow               *window,

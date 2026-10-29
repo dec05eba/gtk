@@ -3621,7 +3621,8 @@ gdk_x11_surface_maximize (GdkSurface *surface)
     gdk_wmspec_change_state (TRUE, surface,
 			     "_NET_WM_STATE_MAXIMIZED_VERT",
 			     "_NET_WM_STATE_MAXIMIZED_HORZ");
-  else
+  else if (gdk_x11_screen_supports_net_wm_hint (GDK_SURFACE_SCREEN (surface),
+                                                g_intern_static_string ("_NET_WM_STATE_MAXIMIZED_VERT")))
     gdk_synthesize_surface_state (surface,
 				 0,
 				 GDK_TOPLEVEL_STATE_MAXIMIZED);

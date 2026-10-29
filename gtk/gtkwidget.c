@@ -12114,6 +12114,7 @@ gtk_widget_create_render_node (GtkWidget   *widget,
   double css_opacity, opacity;
   GtkCssStyle *style;
   gboolean has_backdrop_filter;
+  gboolean clip_shadow;
 
   style = gtk_css_node_get_style (priv->cssnode);
 
@@ -12175,8 +12176,15 @@ gtk_widget_create_render_node (GtkWidget   *widget,
       gtk_snapshot_pop (snapshot); /* clip */
     }
 
+  clip_shadow = GTK_IS_WINDOW (widget) && gtk_window_clips_shadow (GTK_WINDOW (widget));
+  if (clip_shadow)
+    gtk_snapshot_push_rounded_clip (snapshot, gtk_css_boxes_get_border_box (&boxes));
+
   gtk_css_style_snapshot_background (&boxes, snapshot);
   gtk_css_style_snapshot_border (&boxes, snapshot);
+
+  if (clip_shadow)
+    gtk_snapshot_pop (snapshot);
 
   if (priv->overflow == GTK_OVERFLOW_HIDDEN)
     {
