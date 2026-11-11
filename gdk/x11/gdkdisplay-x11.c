@@ -442,6 +442,9 @@ do_net_wm_state_changes (GdkSurface *surface)
   do_edge_constraint_state_check (surface, old_state, &set, &unset);
 
   gdk_synthesize_surface_state (surface, unset, set);
+
+  if ((set | unset) & ~GDK_TOPLEVEL_STATE_FOCUSED)
+    gdk_x11_surface_update_scale (surface);
 }
 
 static void
@@ -916,13 +919,6 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
 	xevent->xconfigure.event == xevent->xconfigure.window)
         {
           int x, y;
-          int configured_width;
-          int configured_height;
-
-          configured_width = gdk_x11_scale_size_from_device (&surface_impl->scale,
-                                                             xevent->xconfigure.width);
-          configured_height = gdk_x11_scale_size_from_device (&surface_impl->scale,
-                                                              xevent->xconfigure.height);
 
 	  if (!xevent->xconfigure.send_event &&
 	      !xevent->xconfigure.override_redirect &&
@@ -952,32 +948,7 @@ gdk_x11_display_translate_event (GdkEventTranslator *translator,
 	      y = xevent->xconfigure.y;
 	    }
 
-          gdk_x11_surface_set_device_position (surface, x, y);
-
-          if (surface_impl->device_geometry.width != xevent->xconfigure.width ||
-              surface_impl->device_geometry.height != xevent->xconfigure.height)
-            {
-              surface_impl->device_geometry.width = xevent->xconfigure.width;
-              surface_impl->device_geometry.height = xevent->xconfigure.height;
-
-              surface_impl->next_layout.configured_width = configured_width;
-              surface_impl->next_layout.configured_height = configured_height;
-              surface_impl->next_layout.surface_geometry_dirty = TRUE;
-              surface_impl->next_layout.configure_pending = TRUE;
-              gdk_surface_request_layout (surface);
-            }
-
-          if (surface->resize_count >= 1)
-            {
-              surface->resize_count -= 1;
-
-              if (surface->resize_count == 0)
-                _gdk_x11_moveresize_configure_done (display, surface);
-            }
-
-          gdk_x11_surface_update_popups (surface);
-          gdk_x11_surface_enter_leave_monitors (surface);
-          gdk_x11_surface_update_scale (surface);
+          gdk_x11_surface_handle_configure (surface, &(GdkRectangle) { x, y, xevent->xconfigure.width, xevent->xconfigure.height });
         }
       break;
 

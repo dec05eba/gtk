@@ -68,7 +68,6 @@ struct _GdkX11Surface
   guint tracking_damage: 1;
   guint popup_grab : 1;
   guint viewable : 1;
-  guint was_viewable : 1;
 
   GdkX11Scale scale;
 
@@ -78,6 +77,8 @@ struct _GdkX11Surface
   int shadow_bottom;
 
   GdkRectangle device_geometry;
+  int buffer_width;
+  int buffer_height;
 
   int last_computed_width;
   int last_computed_height;
@@ -94,6 +95,7 @@ struct _GdkX11Surface
   } next_layout;
 
   guint compute_size_source_id;
+  guint interactive_move_resize_poll_id;
 
   cairo_surface_t *cairo_surface;
   /* GLXDrawable */ XID glx_drawable;
@@ -210,9 +212,8 @@ void            gdk_x11_surface_set_scale            (GdkSurface        *surface
 void            gdk_x11_surface_update_scale         (GdkSurface *surface);
 void            gdk_x11_surface_set_viewable         (GdkSurface *surface,
                                                       gboolean    viewable);
-void            gdk_x11_surface_set_device_position  (GdkSurface *surface,
-                                                      int         x,
-                                                      int         y);
+void            gdk_x11_surface_handle_configure     (GdkSurface         *surface,
+                                                      const GdkRectangle *geometry);
 GdkX11Monitor * gdk_x11_surface_get_monitor          (GdkSurface *surface);
 gboolean        _gdk_x11_surface_syncs_frames        (GdkSurface *surface);
 GdkDrawContextFrame *
